@@ -11,6 +11,7 @@ p = pyaudio.PyAudio()
 stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
                 channels=wf.getnchannels(),
                 rate=wf.getframerate(),
+                input_device_index=0,
                 output=True)
 
 # read data
