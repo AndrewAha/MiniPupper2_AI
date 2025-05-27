@@ -1,11 +1,13 @@
 import pyaudio
 import wave
+import time
 
 CHUNK = 1024
 
 wf = wave.open('output.wav', 'rb')
 
 p = pyaudio.PyAudio()
+start_time = time.time()
 
 # open stream
 stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
@@ -19,9 +21,11 @@ data = wf.readframes(CHUNK)
 print("start play")
 
 # play stream
-while len(data) > 0:
+while True:
     stream.write(data)
     data = wf.readframes(CHUNK)
+    if time.time() - start_time > 5:
+      break
     
 # stop stream
 stream.stop_stream()
