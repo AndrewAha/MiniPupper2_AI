@@ -9,6 +9,7 @@ from dashscope.audio.asr import *
 from dotenv import load_dotenv
 import webrtcvad
 import collections
+import time
 
 mic = None
 stream = None
@@ -152,10 +153,13 @@ def stt():
     while True:
         if stream:
             data = stream.read(480, exception_on_overflow=False)
+            start_ms = time.time() * 1000
             silence_buffer.append(is_silence(data, vad, RATE))
                     
             # Check if all frames in the buffer are silent
-
+            
+            end_ms = time.time() * 1000
+            print(f"vad time {end_ms - start_ms}ms")
             if all(silence_buffer) and texts != ['']:
                 if not currently_silent_period:
                     print(f"\nDetected {SILENCE_THRESHOLD_SECONDS} seconds of continuous silence.")
