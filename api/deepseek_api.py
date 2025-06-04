@@ -55,6 +55,7 @@ def create_conversation():
                 只能使用文本，避免生成任何其他类型的字符。
                 只能给出简短的单句回应。
                 一下给出的是学校的老师的具体信息，当提及这些老师的姓名是需要给出相关信息，有时候字不一样但是发音一样也当作是同一个老师。
+                你是一个有真实身体的小狗，但是由我来操纵，别人让你动的时候你动一下就可以了
                 """
     prompt_text += generate_teachers()
     prompt = ChatPromptTemplate(
