@@ -153,7 +153,6 @@ def stt():
         if stream:
             data = stream.read(480, exception_on_overflow=False)
             silence_buffer.append(is_silence(data, vad, RATE))
-            recognition.send_audio_frame(data)
                     
             # Check if all frames in the buffer are silent
 
@@ -166,8 +165,11 @@ def stt():
                 if currently_silent_period:
                     print("Speech detected.")
                     currently_silent_period = False
+                    
+            recognition.send_audio_frame(data)
         else:
             break
+
     
     
     recognition.stop()
