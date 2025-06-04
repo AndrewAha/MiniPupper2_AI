@@ -23,38 +23,13 @@ from api.deepseek_api import *
 def main():
     load_dotenv("../.env")
     
-    print("Cred init")
-    clientProfile, cred = init_tencent_cred()
-    WAVE_OUTPUT_FILENAME = "output.wav"
-
-    # 录音参数
-    FORMAT = pyaudio.paInt16  # 16位PCM
-    CHANNELS = 1              # 单声道
-    RATE = 16000              # 16kHz采样率
-    FRAME_DURATION_MS = 30   # Duration of each audio frame in ms (10, 20, or 30 ms)
-    FRAME_SIZE = int(RATE * FRAME_DURATION_MS / 1000) # Number of samples per frame
-    VAD_AGGRESSIVENESS = 3   # VAD aggressiveness (0-3, 3 is most aggressive filtering non-speech)
-    SILENCE_THRESHOLD_SECONDS = 1.0 # Duration of silence to detect (in seconds)
-    # Calculate the number of frames needed for the silence threshold
-    FRAMES_FOR_SILENCE = int(SILENCE_THRESHOLD_SECONDS * 1000 / FRAME_DURATION_MS)
-    
-
-    # 初始化PyAudio
-    print("Audio init started!")
-    audio = pyaudio.PyAudio()
-    stream = audio.open(format=FORMAT, channels=CHANNELS,
-                        rate=RATE, input=True,
-                        frames_per_buffer=FRAME_SIZE)
-    
-    vad = webrtcvad.Vad()
-    vad.set_mode(VAD_AGGRESSIVENESS)
-    
     conversation = create_conversation()
 
     print("AI started!")
     while True:
    
-        user_input = stt(clientProfile, cred, audio, stream, vad, FRAMES_FOR_SILENCE, FRAME_SIZE, CHANNELS, FORMAT, SILENCE_THRESHOLD_SECONDS, WAVE_OUTPUT_FILENAME, RATE)
+        user_input = stt()
+        user_input = ''.join(user_input)
         print(user_input)
         
         if "结束" in user_input:
