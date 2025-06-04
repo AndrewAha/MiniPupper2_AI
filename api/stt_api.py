@@ -156,16 +156,16 @@ def stt():
             recognition.send_audio_frame(data)
                     
             # Check if all frames in the buffer are silent
-            if texts != ['']:
-                if all(silence_buffer):
-                    if not currently_silent_period:
-                        print(f"\nDetected {SILENCE_THRESHOLD_SECONDS} seconds of continuous silence.")
-                        currently_silent_period = True
-                        break
-                else:
-                    if currently_silent_period:
-                        print("Speech detected.")
-                        currently_silent_period = False
+
+            if all(silence_buffer) and texts != ['']:
+                if not currently_silent_period:
+                    print(f"\nDetected {SILENCE_THRESHOLD_SECONDS} seconds of continuous silence.")
+                    currently_silent_period = True
+                    break
+            else:
+                if currently_silent_period:
+                    print("Speech detected.")
+                    currently_silent_period = False
         else:
             break
     
