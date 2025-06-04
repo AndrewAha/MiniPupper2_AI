@@ -1,34 +1,103 @@
-# -*- coding: utf-8 -*-
-import json
-from tencentcloud.common.common_client import CommonClient
-from tencentcloud.common import credential
-from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
-from tencentcloud.common.profile.client_profile import ClientProfile
-from tencentcloud.common.profile.http_profile import HttpProfile
+# For prerequisites running the following sample, visit https://help.aliyun.com/zh/model-studio/getting-started/first-api-call-to-qwen
 import os
-from dotenv import load_dotenv
-import base64
+import signal  # for keyboard events handling (press "Ctrl+C" to terminate recording and translation)
+import sys
+
+import dashscope
 import pyaudio
-import time
-import collections
+from dashscope.audio.asr import *
+from dotenv import load_dotenv
 import webrtcvad
-import wave
-import re
+import collections
 
-def init_tencent_cred():
-    APPID = os.environ["APPID"]
-    SECRET_ID = os.environ["SecretId"]
-    SECRET_KEY = os.environ["SecretKey"]
-    #init
-    cred = credential.Credential(SECRET_ID, SECRET_KEY)
-    # 使用临时密钥示例
-    # cred = credential.Credential("SecretId", "SecretKey", "Token")
-    httpProfile = HttpProfile()
-    httpProfile.endpoint = "asr.tencentcloudapi.com"
-    clientProfile = ClientProfile()
-    clientProfile.httpProfile = httpProfile
-    return clientProfile, cred
+mic = None
+stream = None
 
+# Set recording parameters
+sample_rate = 16000  # sampling rate (Hz)
+channels = 1  # mono channel
+dtype = 'int16'  # data type
+format_pcm = 'pcm'  # the format of the audio data
+block_size = 480  # number of frames per buffer
+
+texts = ['']
+
+
+def init_dashscope_api_key():
+    """
+        Set your DashScope API-key. More information:
+        https://github.com/aliyun/alibabacloud-bailian-speech-demo/blob/master/PREREQUISITES.md
+    """
+
+    if 'DASHSCOPE_API_KEY' in os.environ:
+        dashscope.api_key = os.environ[
+            'DASHSCOPE_API_KEY']  # load API-key from environment variable DASHSCOPE_API_KEY
+    else:
+        dashscope.api_key = '<your-dashscope-api-key>'  # set API-key manually
+
+
+# Real-time speech recognition callback
+class Callback(RecognitionCallback):
+    def on_open(self) -> None:
+        global mic
+        global stream
+        print('RecognitionCallback open.')
+        mic = pyaudio.PyAudio()
+        stream = mic.open(format=pyaudio.paInt16,
+                          channels=1,
+                          rate=16000,
+                          input=True)
+
+    def on_close(self) -> None:
+        global mic
+        global stream
+        print('RecognitionCallback close.')
+        stream.stop_stream()
+        stream.close()
+        mic.terminate()
+        stream = None
+        mic = None
+
+    def on_complete(self) -> None:
+        print('RecognitionCallback completed.')  # translation completed
+
+    def on_error(self, message) -> None:
+        print('RecognitionCallback task_id: ', message.request_id)
+        print('RecognitionCallback error: ', message.message)
+        # Stop and close the audio stream if it is running
+        if 'stream' in globals() and stream.active:
+            stream.stop()
+            stream.close()
+        # Forcefully exit the program
+        sys.exit(1)
+
+    def on_event(self, result: RecognitionResult) -> None:
+        sentence = result.get_sentence()
+        if 'text' in sentence:
+            print('RecognitionCallback text: ', sentence['text'])
+            texts[len(texts)-1] = sentence['text']
+            if RecognitionResult.is_sentence_end(sentence):
+                print(
+                    'RecognitionCallback sentence end, request_id:%s, usage:%s'
+                    % (result.get_request_id(), result.get_usage(sentence)))
+                texts.append('')
+
+
+def signal_handler(sig, frame):
+    print('Ctrl+C pressed, stop translation ...')
+    # Stop translation
+    recognition.stop()
+    print('Translation stopped.')
+    print(
+        '[Metric] requestId: {}, first package delay ms: {}, last package delay ms: {}'
+        .format(
+            recognition.get_last_request_id(),
+            recognition.get_first_package_delay(),
+            recognition.get_last_package_delay(),
+        ))
+    print(texts)
+    # Forcefully exit the program
+    sys.exit(0)
 
 def is_silence(data, vad, RATE):
     """Checks if a given audio frame is silence."""
@@ -39,101 +108,34 @@ def is_silence(data, vad, RATE):
         print(f"Error in VAD: {e}")
         return True # Assume silence on error to be safe
 
-
-def tencent_stt(clientProfile, cred, audio_data):
-    print("STT started")
-    start_ms = time.time() * 1000
-    
-    # 转换为 Base64
-    base64_string = base64.b64encode(audio_data).decode("utf-8")
-    
-    params = {
-        "EngineModelType": "16k_zh",
-        "ChannelNum": 1,
-        "ResTextFormat": 2,
-        "SourceType": 1,
-        "Data": base64_string  # 确保 base64_string 是有效的 Base64 编码
-    }
-    
-    params = json.dumps(params, ensure_ascii=False)
-    common_client = CommonClient("asr", "2019-06-14", cred, "ap-guangzhou", profile=clientProfile)
-    request = common_client.call_json("CreateRecTask", json.loads(params))
-
-    params = {
-        "TaskId": request["Response"]["Data"]["TaskId"],
-        }
-    params = json.dumps(params, ensure_ascii=False)
-    response = common_client.call_json("DescribeTaskStatus", json.loads(params))
-    
-    while response["Response"]["Data"]["Status"] != 2:
-        response = common_client.call_json("DescribeTaskStatus", json.loads(params))
-    end_ms = time.time() * 1000
-    print(f"time delay: {end_ms - start_ms}ms")
-    #print(response["Response"]["Data"]["Result"])
-    result = re.sub(r'\[.*?\]', '', response["Response"]["Data"]["Result"])  # 非贪婪匹配
-    #print(result)
-    return result
-
-def stt(clientProfile, cred, audio, stream, vad, FRAMES_FOR_SILENCE, FRAME_SIZE, CHANNELS, FORMAT, SILENCE_THRESHOLD_SECONDS, WAVE_OUTPUT_FILENAME, RATE):
-    frames = []
-    silence_buffer = collections.deque([True] * FRAMES_FOR_SILENCE, maxlen=FRAMES_FOR_SILENCE)
-    currently_silent_period = True
-    
-    while True:
-        try:
-            frame_data = stream.read(FRAME_SIZE, exception_on_overflow=False)
-        except IOError as e:
-            if e.errno == pyaudio.paInputOverflowed:
-                print("Input overflowed. Skipping frame.")
-                continue
-            else:
-                raise
-
-        if len(frame_data) != FRAME_SIZE * CHANNELS * pyaudio.get_sample_size(FORMAT):
-            print(f"Warning: Incorrect frame size received. Expected {FRAME_SIZE * CHANNELS * 2}, got {len(frame_data)}")
-            continue
-        
-        frame_is_silent = is_silence(frame_data, vad, RATE)
-        silence_buffer.append(frame_is_silent)
-        frames.append(frame_data)
-        
-        # Check if all frames in the buffer are silent
-        if all(silence_buffer):
-            if not currently_silent_period:
-                print(f"\nDetected {SILENCE_THRESHOLD_SECONDS} seconds of continuous silence.")
-                currently_silent_period = True
-                break
-        else:
-            if currently_silent_period:
-                print("Speech detected.")
-                currently_silent_period = False
-
-            
-
-    waveFile = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
-    waveFile.setnchannels(CHANNELS)
-    waveFile.setsampwidth(audio.get_sample_size(FORMAT))
-    waveFile.setframerate(RATE)
-    waveFile.writeframes(b''.join(frames))
-    waveFile.close()
-    # 读取 WAV 文件
-    with open("output.wav", "rb") as audio_file:
-        audio_bytes = audio_file.read()
-    #audio_bytes = b''.join(frames)
-
-    return tencent_stt(clientProfile, cred, audio_bytes)
-
-    
-        
-
-if __name__ == "__main__":
+def stt():
+    global texts
+    texts = ['']
     load_dotenv("../.env")
-    clientProfile, cred = init_tencent_cred()
-    WAVE_OUTPUT_FILENAME = "output.wav"
+    init_dashscope_api_key()
+    print('Initializing ...')
 
-    # 录音参数
-    FORMAT = pyaudio.paInt16  # 16位PCM
-    CHANNELS = 1              # 单声道
+    # Create the translation callback
+    callback = Callback()
+
+    # Call recognition service by async mode, you can customize the recognition parameters, like model, format,
+    # sample_rate For more information, please refer to https://help.aliyun.com/document_detail/2712536.html
+    recognition = Recognition(
+        model='paraformer-realtime-v2',
+        # 'paraformer-realtime-v1'、'paraformer-realtime-8k-v1'
+        format=format_pcm,
+        # 'pcm'、'wav'、'opus'、'speex'、'aac'、'amr', you can check the supported formats in the document
+        sample_rate=sample_rate,
+        # support 8000, 16000
+        semantic_punctuation_enabled=False,
+        callback=callback)
+
+    # Start translation
+    recognition.start()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    print("Press 'Ctrl+C' to stop recording and translation...")
+    # Create a keyboard listener until "Ctrl+C" is pressed
     RATE = 16000              # 16kHz采样率
     FRAME_DURATION_MS = 30   # Duration of each audio frame in ms (10, 20, or 30 ms)
     FRAME_SIZE = int(RATE * FRAME_DURATION_MS / 1000) # Number of samples per frame
@@ -141,21 +143,30 @@ if __name__ == "__main__":
     SILENCE_THRESHOLD_SECONDS = 1.5 # Duration of silence to detect (in seconds)
     # Calculate the number of frames needed for the silence threshold
     FRAMES_FOR_SILENCE = int(SILENCE_THRESHOLD_SECONDS * 1000 / FRAME_DURATION_MS)
-
-    # 初始化PyAudio
-    audio = pyaudio.PyAudio()
-    stream = audio.open(format=FORMAT, channels=CHANNELS,
-                        rate=RATE, input=True,
-                        frames_per_buffer=FRAME_SIZE)
-    
     vad = webrtcvad.Vad()
     vad.set_mode(VAD_AGGRESSIVENESS)
-   
-    stt(clientProfile, cred, stream, vad, FRAMES_FOR_SILENCE, FRAME_SIZE, CHANNELS, FORMAT, SILENCE_THRESHOLD_SECONDS, WAVE_OUTPUT_FILENAME, RATE)
+    silence_buffer = collections.deque([False] * FRAMES_FOR_SILENCE, maxlen=FRAMES_FOR_SILENCE)
+    print("STT started")
     
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
-
-
+    while True:
+        if stream:
+            data = stream.read(480, exception_on_overflow=False)
+            silence_buffer.append(is_silence(data, vad, RATE))
+            recognition.send_audio_frame(data)
+            if all(silence_buffer):
+                print("silence detected")
+                break
+        else:
+            break
     
+    
+    recognition.stop()
+    print("STT end")
+    print(texts)
+    return texts
+
+# main function
+if __name__ == '__main__':
+    
+    while(True):
+        stt()
