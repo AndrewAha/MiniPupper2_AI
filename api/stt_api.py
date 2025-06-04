@@ -145,7 +145,8 @@ def stt():
     FRAMES_FOR_SILENCE = int(SILENCE_THRESHOLD_SECONDS * 1000 / FRAME_DURATION_MS)
     vad = webrtcvad.Vad()
     vad.set_mode(VAD_AGGRESSIVENESS)
-    silence_buffer = collections.deque([False] * FRAMES_FOR_SILENCE, maxlen=FRAMES_FOR_SILENCE)
+    silence_buffer = collections.deque([True] * FRAMES_FOR_SILENCE, maxlen=FRAMES_FOR_SILENCE)
+    currently_silent_period = True
     print("STT started")
     
     while True:
@@ -153,9 +154,17 @@ def stt():
             data = stream.read(480, exception_on_overflow=False)
             silence_buffer.append(is_silence(data, vad, RATE))
             recognition.send_audio_frame(data)
+                    
+            # Check if all frames in the buffer are silent
             if all(silence_buffer):
-                print("silence detected")
-                break
+                if not currently_silent_period:
+                    print(f"\nDetected {SILENCE_THRESHOLD_SECONDS} seconds of continuous silence.")
+                    currently_silent_period = True
+                    break
+            else:
+                if currently_silent_period:
+                    print("Speech detected.")
+                    currently_silent_period = False
         else:
             break
     
