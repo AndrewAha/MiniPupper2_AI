@@ -169,13 +169,15 @@ def stt():
                 if currently_silent_period:
                     print("Speech detected.")
                     currently_silent_period = False
+                    start_ms = time.time()
                     
             recognition.send_audio_frame(data)
         else:
             break
 
     
-    
+    end_ms = time.time()
+    print(f"STT cost {end_ms - start_ms}ms")
     recognition.stop()
     print("STT end")
     print(texts)
