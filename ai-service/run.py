@@ -13,15 +13,17 @@ import logging
 from dotenv import load_dotenv
 import webrtcvad
 import sys
+import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from api.stt_api import *
 from api.tts_api import *
-from api.deepseek_api import *
+from api.deepseek_api import create_conversation
 from api.media_api import *
 import threading
 
 think_end = False
+speaking = True
 response = None
 
 def think_gif():
@@ -29,23 +31,31 @@ def think_gif():
     while not think_end:
         show_gif(player)
 
+def speaking_gif():
+    player = init_gifplayer("../speaking_gif/")
+    while speaking:
+        show_gif(player)
 
 def ai_text_response(conversation, input_text):
-    logging.debug("ai_text_response start!")
+    print("ai_text_response start!")
     ms_start = int(time.time() * 1000)
 
     result = conversation.invoke(input=input_text)
-    logging.debug(f"ai_text_response response: {result}")
+    print(f"ai_text_response response: {result}")
     result = result['response']
-    logging.debug(f"text response: {result}")
+    print(f"text response: {result}")
     ms_end = int(time.time() * 1000)
-    logging.debug(f"ai_text_response end, delay = {ms_end - ms_start}ms")
+    print(f"ai_text_response end, delay = {ms_end - ms_start}ms")
+    global response
+    global think_end
     response =  result
     think_end = True
 
 def main():
     load_dotenv("../.env")
-    
+    global response
+    global think_end
+    global speaking
     conversation = create_conversation()
 
     print("AI started!")
@@ -69,8 +79,17 @@ def main():
         th_gif_thread.join()
 
         print(response)
-        
-        tts(response)
+
+        speaking = True
+        tts_task = threading.Thread(target=tts, args=(response, user_input))
+        tts_task.start()
+
+        sp_gif_thread = threading.Thread(target=speaking_gif)
+        sp_gif_thread.start()
+
+        tts_task.join()
+        speaking = False
+        sp_gif_thread.join()
 
         
     print("AI end!")
