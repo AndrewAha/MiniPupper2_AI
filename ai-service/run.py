@@ -63,6 +63,7 @@ def ai_text_response(conversation, input_text):
 
 def tts():
     global response
+    global speaking
     text = response
     # 填写平台申请的appid, access_token以及cluster
     appid = os.environ["appid"]
@@ -115,6 +116,7 @@ def tts():
 
     end_ms = time.time() * 1000
     print(f"{end_ms - start_ms}ms")
+    speaking = False
 
 def main():
     load_dotenv("../.env")
@@ -154,7 +156,6 @@ def main():
         sp_gif_thread.start()
 
         tts_task.join()
-        speaking = False
         sp_gif_thread.join()
 
         
