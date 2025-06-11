@@ -73,18 +73,6 @@ def create_conversation():
     logging.debug("Conversation create end!")
     return conversation
 
-def ai_text_response(conversation, input_text):
-    
-    logging.debug("ai_text_response start!")
-    ms_start = int(time.time() * 1000)
-    
-    result = conversation.invoke(input=input_text)
-    logging.debug(f"ai_text_response response: {result}")
-    result = result['response']
-    logging.debug(f"text response: {result}")
-    ms_end = int(time.time() * 1000)
-    logging.debug(f"ai_text_response end, delay = {ms_end - ms_start}ms")
-    return result
     
     
     
