@@ -14,10 +14,20 @@ from dotenv import load_dotenv
 import webrtcvad
 import sys
 import time
+import base64
+import json
+import uuid
+import requests
+import time
+import sounddevice as sd
+import soundfile as sf
+from io import BytesIO
+import os
+from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from api.stt_api import *
-from api.tts_api import *
+#from api.tts_api import *
 from api.deepseek_api import create_conversation
 from api.media_api import *
 import threading
@@ -51,6 +61,61 @@ def ai_text_response(conversation, input_text):
     response =  result
     think_end = True
 
+def tts():
+    global response
+    text = response
+    # 填写平台申请的appid, access_token以及cluster
+    appid = os.environ["appid"]
+    access_token = os.environ["access_token"]
+    cluster = "volcano_tts"
+
+    voice_type = "zh_male_shaonianzixin_moon_bigtts"
+    host = "openspeech.bytedance.com"
+    api_url = f"https://{host}/api/v1/tts"
+
+    header = {"Authorization": f"Bearer;{access_token}"}
+
+    request_json = {
+        "app": {
+            "appid": appid,
+            "token": "access_token",
+            "cluster": cluster
+        },
+        "user": {
+            "uid": "388808087185088"
+        },
+        "audio": {
+            "voice_type": voice_type,
+            "encoding": "wav",
+            "speed_ratio": 1.0,
+            "volume_ratio": 1.0,
+            "pitch_ratio": 1.0,
+        },
+        "request": {
+            "reqid": str(uuid.uuid4()),
+            "text": text,
+            "text_type": "plain",
+            "operation": "query",
+            "with_frontend": 1,
+            "frontend_type": "unitTson"
+
+        }
+    }
+    start_ms = time.time() * 1000
+    resp = requests.post(api_url, json.dumps(request_json), headers=header)
+    print(f"resp body: \n{resp.json().keys()}")
+    end_ms = time.time() * 1000
+    print(f"{end_ms - start_ms}ms")
+    if "data" in resp.json():
+        data = resp.json()["data"]
+        data = base64.b64decode(data)
+        audio_data, sample_rate = sf.read(BytesIO(data))
+        sd.play(audio_data, sample_rate)
+        sd.wait()  # 等待播放完成
+
+    end_ms = time.time() * 1000
+    print(f"{end_ms - start_ms}ms")
+
 def main():
     load_dotenv("../.env")
     global response
@@ -81,7 +146,8 @@ def main():
         print(response)
 
         speaking = True
-        tts_task = threading.Thread(target=tts, args=(response))
+
+        tts_task = threading.Thread(target=tts)
         tts_task.start()
 
         sp_gif_thread = threading.Thread(target=speaking_gif)
