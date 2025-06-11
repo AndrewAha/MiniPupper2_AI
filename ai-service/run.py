@@ -81,7 +81,7 @@ def main():
         print(response)
 
         speaking = True
-        tts_task = threading.Thread(target=tts, args=(response, user_input))
+        tts_task = threading.Thread(target=tts, args=(response))
         tts_task.start()
 
         sp_gif_thread = threading.Thread(target=speaking_gif)
