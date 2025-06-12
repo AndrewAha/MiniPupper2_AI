@@ -30,11 +30,29 @@ from api.stt_api import *
 #from api.tts_api import *
 from api.deepseek_api import create_conversation
 from api.media_api import *
+from api.move_api import *
 import threading
 
 think_end = False
 speaking = True
 response = None
+
+move_cmd_functions = {
+                 "action": init_movement,
+                 "sit": squat,
+                 "move forwards": move_forward,
+                 "move backwards": move_backward,
+                 "move left": move_left,
+                 "move right": move_right,
+                 "look down": look_down,
+                 "look left": look_left,
+                 "look upper left": look_upperleft,
+                 "look lower left": look_leftlower,
+                 "look right": look_right,
+                 "look upper right": look_upperright,
+                 "look lower right": look_rightlower,
+                 "dance": dance,
+             }
 
 def think_gif():
     player = init_gifplayer("../think_gif/")
@@ -124,6 +142,30 @@ def main():
     global think_end
     global speaking
     conversation = create_conversation()
+    move_api_map = {
+        "init": init_movement,
+        "lower": lower_body,
+        "raise": raise_body,
+        "left roll": left_body,
+        "right roll": right_body,
+        "trot": trot,
+        "trot1": trot_duration,
+        "squat": squat,
+        "forward": move_forward,
+        "backward": move_backward,
+        "left": move_left,
+        "right": move_right,
+        # "bow": bow,
+        "look up": look_up,
+        "look down": look_down,
+        "look left": look_left,
+        "look upper left": look_upperleft,
+        "look lower left": look_leftlower,
+        "look right": look_right,
+        "look upper right": look_upperright,
+        "look lower right": look_rightlower,
+        "dance": dance,
+    }
 
     print("AI started!")
     while True:
@@ -134,6 +176,57 @@ def main():
         
         if "结束" in user_input:
             break
+        
+        if not user_input:
+            logging.debug(f"no input!")
+        elif "向上看" in user_input:
+            # movement_queue.put("look up")
+            move_cmd_functions["look up"]()
+        elif "跳舞" in user_input or "dance" in user_input:
+            #movement_queue.put(move_key)
+            # movement_queue.put("dance")
+            move_cmd_functions["dance"]()
+            # output_text_queue.put("好的")
+        elif "坐下" in user_input :
+            # movement_queue.put(move_key)
+            move_cmd_functions["sit"]()
+            # output_text_queue.put("好的")
+        elif "走路" in user_input or "走" in user_input or "向前走" in user_input or "行" in user_input:
+            # movement_queue.put("move forwards")
+            move_cmd_functions["move forwards"]()
+            # output_text_queue.put("好的")
+        elif "action" in user_input :
+            move_cmd_functions["aciton"]()
+            # output_text_queue.put("action initing")
+            
+        #这是原ai_app.py的特判
+        # elif move_key:
+            # movement_queue.put(move_key)
+            # move_cmd_functions[move_key]()
+            # output_text_queue.put(f"好的, 我会{move_key}")
+        # elif not ai_on:
+        #     logging.info(f"ai is not on, do not use gemini")
+        #     stt_queue.put(True)
+        #     time.sleep(0.5)
+        #     google_api.stop_speech_to_text(stream)
+        #     time.sleep(0.5)
+        #     continue
+        elif "游戏" in user_input or "做游戏" in user_input or "玩游戏" in user_input:
+            #movement_queue.put("trot")
+            move_cmd_functions["trot"]()
+            # output_text_queue.put(GAME_TEXT)
+        # elif lang:
+        #     logging.debug(f"switch language: {lang}")
+        #     user_input += f", Please reply in {lang}."
+        #     input_text_queue.put(user_input)
+        #     stt_queue.put(False)
+        # else:
+        #     logging.debug(f"put voice text to input queue: {user_input}")
+        #     input_text_queue.put(user_input)
+        #     stt_queue.put(False)
+        time.sleep(0.5)
+        # google_api.stop_speech_to_text(stream)
+        time.sleep(0.5)
         
         deepseek_task = threading.Thread(target=ai_text_response, args=(conversation, user_input))
         deepseek_task.start()
@@ -168,3 +261,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
