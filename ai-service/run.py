@@ -54,6 +54,12 @@ move_cmd_functions = {
                  "dance": dance,
              }
 
+move_cmd = None
+
+def move_task():
+    if move_cmd is not None:
+        move_cmd_functions[move_cmd]()
+
 def think_gif():
     player = init_gifplayer("../think_gif/")
     while not think_end:
@@ -181,23 +187,27 @@ def main():
             logging.debug(f"no input!")
         elif "向上看" in user_input:
             # movement_queue.put("look up")
-            move_cmd_functions["look up"]()
+            move_cmd = "look up"
         elif "跳舞" in user_input or "dance" in user_input:
             #movement_queue.put(move_key)
             # movement_queue.put("dance")
-            move_cmd_functions["dance"]()
+            move_cmd = "dance"
             # output_text_queue.put("好的")
         elif "坐下" in user_input :
             # movement_queue.put(move_key)
-            move_cmd_functions["sit"]()
+            move_cmd = "sit"
             # output_text_queue.put("好的")
         elif "走路" in user_input or "走" in user_input or "向前走" in user_input or "行" in user_input:
             # movement_queue.put("move forwards")
-            move_cmd_functions["move forwards"]()
+            move_cmd = "move forwards"
             # output_text_queue.put("好的")
+        elif "向后走" in user_input:
+            move_cmd = "move backwards"
         elif "action" in user_input :
-            move_cmd_functions["aciton"]()
+            move_cmd = "aciton"
             # output_text_queue.put("action initing")
+        else:
+            move_cmd = None
             
         #这是原ai_app.py的特判
         # elif move_key:
@@ -230,6 +240,9 @@ def main():
         
         deepseek_task = threading.Thread(target=ai_text_response, args=(conversation, user_input))
         deepseek_task.start()
+        
+        move_t = threading.Thread(target=move_task)
+        move_t.start()
 
         think_end = False
         th_gif_thread = threading.Thread(target=think_gif)
@@ -237,6 +250,7 @@ def main():
 
         deepseek_task.join()
         th_gif_thread.join()
+        move_t.join()
 
         print(response)
 
@@ -261,4 +275,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
