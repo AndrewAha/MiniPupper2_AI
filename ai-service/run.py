@@ -173,6 +173,12 @@ def main():
         "dance": dance,
     }
 
+    while True:
+        user_input = stt()
+        user_input = ''.join(user_input)
+        if "雪狼" in user_input:
+            print("被唤醒")
+            break
     print("AI started!")
     while True:
    
@@ -272,3 +278,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
