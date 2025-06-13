@@ -221,9 +221,6 @@ def main():
         #     google_api.stop_speech_to_text(stream)
         #     time.sleep(0.5)
         #     continue
-        elif "游戏" in user_input or "做游戏" in user_input or "玩游戏" in user_input:
-            #movement_queue.put("trot")
-            move_cmd_functions["trot"]()
             # output_text_queue.put(GAME_TEXT)
         # elif lang:
         #     logging.debug(f"switch language: {lang}")
@@ -234,9 +231,9 @@ def main():
         #     logging.debug(f"put voice text to input queue: {user_input}")
         #     input_text_queue.put(user_input)
         #     stt_queue.put(False)
-        time.sleep(0.5)
+        #time.sleep(0.5)
         # google_api.stop_speech_to_text(stream)
-        time.sleep(0.5)
+        #time.sleep(0.5)
         
         deepseek_task = threading.Thread(target=ai_text_response, args=(conversation, user_input))
         deepseek_task.start()
